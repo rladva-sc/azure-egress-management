@@ -1,0 +1,76 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.linting.enabled": true,
+        "python.linting.flake8Enabled": true,
+        "python.formatting.provider": "black",
+        "python.formatting.blackArgs": [
+            "--line-length",
+            "100"
+        ],
+        "editor.formatOnSave": true,
+        "editor.rulers": [100],
+        "python.testing.pytestEnabled": true,
+        "python.testing.unittestEnabled": false,
+        "python.testing.nosetestsEnabled": false,
+        "python.testing.pytestArgs": [
+            "tests"
+        ],
+        "python.analysis.extraPaths": [
+            "./src"
+        ],
+        "files.exclude": {
+            "**/__pycache__": true,
+            "**/*.pyc": true,
+            ".pytest_cache": true,
+            ".coverage": true
+        },
+        "terminal.integrated.env.windows": {
+            "PYTHONPATH": "${workspaceFolder}"
+        },
+        "terminal.integrated.env.linux": {
+            "PYTHONPATH": "${workspaceFolder}"
+        },
+        "terminal.integrated.env.osx": {
+            "PYTHONPATH": "${workspaceFolder}"
+        }
+    },
+    "launch": {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: Current File",
+                "type": "python",
+                "request": "launch",
+                "program": "${file}",
+                "console": "integratedTerminal",
+                "justMyCode": false
+            },
+            {
+                "name": "Python: Monitor",
+                "type": "python",
+                "request": "launch",
+                "module": "src.main",
+                "args": [
+                    "monitor",
+                    "--subscription",
+                    "${input:subscriptionId}"
+                ],
+                "console": "integratedTerminal",
+                "justMyCode": false
+            }
+        ],
+        "inputs": [
+            {
+                "id": "subscriptionId",
+                "type": "promptString",
+                "description": "Azure Subscription ID",
+                "default": ""
+            }
+        ]
+    }
+}

@@ -1,0 +1,29 @@
+{
+  "logging": {
+    "level": "INFO",
+    "file": "egress_management.log"
+  },
+  "azure": {
+    "auth_method": "default",
+    "use_cli": true
+  },
+  "monitoring": {
+    "default_days": 7,
+    "resources": {
+      "virtual_machines": true,
+      "app_services": true,
+      "vnets": true,
+      "load_balancers": true,
+      "public_ips": true
+    },
+    "metrics": {
+      "egress_bytes": true,
+      "egress_packets": true,
+      "active_connections": true
+    }
+  },
+  "reporting": {
+    "output_format": "json",
+    "default_path": "data/reports"
+  }
+}

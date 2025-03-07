@@ -1,0 +1,15 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-toolsai.jupyter",
+        "ms-azuretools.vscode-azurefunctions", 
+        "ms-vscode.azure-account",
+        "ms-vscode.powershell",
+        "redhat.vscode-yaml",
+        "davidanson.vscode-markdownlint",
+        "github.vscode-pull-request-github",
+        "streetsidesoftware.code-spell-checker",
+        "eamodio.gitlens"
+    ]
+}
