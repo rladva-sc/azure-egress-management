@@ -1,21 +1,29 @@
 # Azure SDK packages
 azure-identity>=1.10.0
-azure-mgmt-network>=19.0.0
-azure-mgmt-monitor>=3.0.0
+azure-mgmt-compute>=27.0.0
+azure-mgmt-network>=21.0.0
+azure-mgmt-monitor>=5.0.0
 azure-mgmt-resource>=21.0.0
+azure-mgmt-storage>=20.0.0
 azure-storage-blob>=12.14.0
 
 # Utilities
 python-dotenv>=0.21.0
 pyyaml>=6.0
-pandas>=1.5.2
-numpy>=1.23.5
+pandas>=1.5.0
+numpy>=1.21.0
 
 # Testing and quality
-pytest>=7.2.0
+pytest>=7.0.0
 flake8>=6.0.0
 black>=22.12.0
 
 # Dashboard and visualization
-plotly>=5.11.0
+plotly>=5.10.0
 dash>=2.7.0
+dash-bootstrap-components>=1.2.0
+
+# Additional packages
+typer>=0.7.0
+python-dateutil>=2.8.2
+pydantic>=1.10.0

@@ -1,0 +1,35 @@
+{
+    "extends": [
+        "config:base"
+    ],
+    "packageRules": [
+        {
+            "matchUpdateTypes": [
+                "minor",
+                "patch",
+                "pin",
+                "digest"
+            ],
+            "automerge": true
+        },
+        {
+            "matchDepTypes": [
+                "dev-dependencies"
+            ],
+            "automerge": true
+        }
+    ],
+    "schedule": [
+        "every weekend"
+    ],
+    "labels": [
+        "dependencies"
+    ],
+    "assignees": [
+        "maintainer"
+    ],
+    "timezone": "America/Los_Angeles",
+    "dependencyDashboard": true,
+    "dependencyDashboardTitle": "Dependency Dashboard",
+    "commitMessagePrefix": "chore(deps):"
+}

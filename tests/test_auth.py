@@ -1,10 +1,123 @@
 """
 Tests for the authentication module.
 """
+import os
 import pytest
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import MagicMock, patch, PropertyMock
+
 from src.auth.azure_auth import AzureAuthenticator, AzureAuthenticationError
-from src.auth.credentials import CredentialOptions
+from src.auth.credentials import CredentialManager, CredentialOptions
+
+
+def test_credential_manager_init():
+    """Test credential manager initialization."""
+    credential_manager = CredentialManager()
+    assert credential_manager is not None
+    assert hasattr(credential_manager, 'get_credential')
+
+@patch('src.auth.credentials.DefaultAzureCredential')
+def test_default_credential(mock_default_credential):
+    """Test getting default credential."""
+    # Setup mock
+    mock_credential = MagicMock()
+    mock_default_credential.return_value = mock_credential
+    
+    # Create credential manager and get credential
+    credential_manager = CredentialManager()
+    credential = credential_manager.get_credential('default')
+    
+    # Verify
+    assert credential == mock_credential
+    mock_default_credential.assert_called_once()
+
+@patch.dict(os.environ, {"AZURE_CLIENT_ID": "test-client-id", 
+                         "AZURE_CLIENT_SECRET": "test-client-secret", 
+                         "AZURE_TENANT_ID": "test-tenant-id"})
+@patch('src.auth.credentials.ClientSecretCredential')
+def test_service_principal_credential(mock_client_secret_credential):
+    """Test getting service principal credential."""
+    # Setup mock
+    mock_credential = MagicMock()
+    mock_client_secret_credential.return_value = mock_credential
+    
+    # Create credential manager and get credential
+    credential_manager = CredentialManager()
+    credential = credential_manager.get_credential('service_principal')
+    
+    # Verify
+    assert credential == mock_credential
+    mock_client_secret_credential.assert_called_once_with(
+        client_id="test-client-id",
+        client_secret="test-client-secret",
+        tenant_id="test-tenant-id"
+    )
+
+def test_azure_authenticator_init():
+    """Test authenticator initialization."""
+    authenticator = AzureAuthenticator()
+    assert authenticator is not None
+    assert hasattr(authenticator, 'get_client')
+
+@patch('src.auth.azure_auth.CredentialManager')
+def test_authenticator_auth_method(mock_credential_manager):
+    """Test authenticator with different authentication methods."""
+    # Setup mock
+    mock_manager = MagicMock()
+    mock_credential = MagicMock()
+    mock_manager.get_credential.return_value = mock_credential
+    mock_credential_manager.return_value = mock_manager
+    
+    # Test default method
+    authenticator = AzureAuthenticator()
+    mock_manager.get_credential.assert_called_with('default')
+    
+    # Test specified method
+    authenticator = AzureAuthenticator(auth_method='managed_identity')
+    mock_manager.get_credential.assert_called_with('managed_identity')
+
+@patch('src.auth.azure_auth.NetworkManagementClient')
+@patch('src.auth.azure_auth.CredentialManager')
+def test_get_network_client(mock_credential_manager, mock_network_client):
+    """Test getting network client."""
+    # Setup mocks
+    mock_manager = MagicMock()
+    mock_credential = MagicMock()
+    mock_manager.get_credential.return_value = mock_credential
+    mock_credential_manager.return_value = mock_manager
+    
+    mock_client = MagicMock()
+    mock_network_client.return_value = mock_client
+    
+    # Get network client
+    authenticator = AzureAuthenticator()
+    subscription_id = "test-subscription-id"
+    client = authenticator.get_client('network', subscription_id)
+    
+    # Verify
+    assert client == mock_client
+    mock_network_client.assert_called_once_with(mock_credential, subscription_id)
+
+@patch('src.auth.azure_auth.MonitorManagementClient')
+@patch('src.auth.azure_auth.CredentialManager')
+def test_get_monitor_client(mock_credential_manager, mock_monitor_client):
+    """Test getting monitor client."""
+    # Setup mocks
+    mock_manager = MagicMock()
+    mock_credential = MagicMock()
+    mock_manager.get_credential.return_value = mock_credential
+    mock_credential_manager.return_value = mock_manager
+    
+    mock_client = MagicMock()
+    mock_monitor_client.return_value = mock_client
+    
+    # Get monitor client
+    authenticator = AzureAuthenticator()
+    subscription_id = "test-subscription-id"
+    client = authenticator.get_client('monitor', subscription_id)
+    
+    # Verify
+    assert client == mock_client
+    mock_monitor_client.assert_called_once_with(mock_credential, subscription_id)
 
 
 def test_azure_authenticator_initialization():

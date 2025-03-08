@@ -2,8 +2,8 @@
 Trend analysis functionality for Azure egress metrics.
 """
 import logging
-import numpy as np
 import pandas as pd
+import numpy as np
 from typing import Dict, List, Any, Optional, Tuple, Union
 from datetime import datetime, timedelta
 

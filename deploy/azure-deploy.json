@@ -1,0 +1,477 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "projectName": {
+            "type": "string",
+            "metadata": {
+                "description": "The name of the Azure Egress Management project deployment."
+            },
+            "defaultValue": "egress-management"
+        },
+        "location": {
+            "type": "string",
+            "defaultValue": "[resourceGroup().location]",
+            "metadata": {
+                "description": "Location for all resources."
+            }
+        },
+        "environment": {
+            "type": "string",
+            "defaultValue": "dev",
+            "allowedValues": [
+                "dev",
+                "test",
+                "prod"
+            ],
+            "metadata": {
+                "description": "Deployment environment (dev, test, or prod)"
+            }
+        },
+        "storageAccountType": {
+            "type": "string",
+            "defaultValue": "Standard_LRS",
+            "allowedValues": [
+                "Standard_LRS",
+                "Standard_GRS",
+                "Standard_ZRS"
+            ],
+            "metadata": {
+                "description": "Storage Account type for metrics data"
+            }
+        },
+        "appServicePlanSku": {
+            "type": "string",
+            "defaultValue": "F1",
+            "allowedValues": [
+                "F1",
+                "B1",
+                "B2",
+                "S1",
+                "P1V2"
+            ],
+            "metadata": {
+                "description": "App Service Plan SKU for dashboard hosting"
+            }
+        },
+        "logRetentionDays": {
+            "type": "int",
+            "defaultValue": 30,
+            "minValue": 7,
+            "maxValue": 365,
+            "metadata": {
+                "description": "Number of days to retain logs in Log Analytics"
+            }
+        },
+        "enableDashboard": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "Enable the web dashboard"
+            }
+        },
+        "enableAlerts": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "Enable egress anomaly alerts"
+            }
+        },
+        "deployPython": {
+            "type": "bool",
+            "defaultValue": true,
+            "metadata": {
+                "description": "Deploy Python application"
+            }
+        }
+    },
+    "variables": {
+        "resourceNamePrefix": "[concat(parameters('projectName'), '-', parameters('environment'))]",
+        "storageAccountName": "[toLower(replace(concat(variables('resourceNamePrefix'), 'stg'), '-', ''))]",
+        "appServicePlanName": "[concat(variables('resourceNamePrefix'), '-plan')]",
+        "appServiceName": "[concat(variables('resourceNamePrefix'), '-app')]",
+        "functionAppName": "[concat(variables('resourceNamePrefix'), '-func')]",
+        "appInsightsName": "[concat(variables('resourceNamePrefix'), '-ai')]",
+        "logAnalyticsName": "[concat(variables('resourceNamePrefix'), '-logs')]",
+        "keyVaultName": "[concat(variables('resourceNamePrefix'), '-kv')]",
+        "monitorAlertName": "[concat(variables('resourceNamePrefix'), '-alert')]",
+        "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+        "functionWorkerRuntime": "python",
+        "containerNames": {
+            "rawData": "rawdata",
+            "processedData": "processed",
+            "reports": "reports"
+        },
+        "tags": {
+            "Project": "[parameters('projectName')]",
+            "Environment": "[parameters('environment')]"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2021-04-01",
+            "name": "[variables('storageAccountName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "sku": {
+                "name": "[parameters('storageAccountType')]"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "allowBlobPublicAccess": false,
+                "minimumTlsVersion": "TLS1_2",
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2021-04-01",
+            "name": "[concat(variables('storageAccountName'), '/default')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ],
+            "properties": {
+                "deleteRetentionPolicy": {
+                    "enabled": true,
+                    "days": 7
+                },
+                "cors": {
+                    "corsRules": []
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-04-01",
+            "name": "[concat(variables('storageAccountName'), '/default/', variables('containerNames').rawData)]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-04-01",
+            "name": "[concat(variables('storageAccountName'), '/default/', variables('containerNames').processedData)]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+            "apiVersion": "2021-04-01",
+            "name": "[concat(variables('storageAccountName'), '/default/', variables('containerNames').reports)]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+            ],
+            "properties": {
+                "publicAccess": "None"
+            }
+        },
+        {
+            "type": "Microsoft.OperationalInsights/workspaces",
+            "apiVersion": "2021-06-01",
+            "name": "[variables('logAnalyticsName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "properties": {
+                "sku": {
+                    "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('logRetentionDays')]",
+                "features": {
+                    "enableLogAccessUsingOnlyResourcePermissions": true
+                },
+                "workspaceCapping": {
+                    "dailyQuotaGb": 1
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Insights/components",
+            "apiVersion": "2020-02-02",
+            "name": "[variables('appInsightsName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "kind": "web",
+            "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]",
+                "Flow_Type": "Redfield",
+                "Request_Source": "IbizaAIExtension"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+            ]
+        },
+        {
+            "condition": "[parameters('enableDashboard')]",
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('appServicePlanName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "sku": {
+                "name": "[parameters('appServicePlanSku')]",
+                "tier": "[if(equals(parameters('appServicePlanSku'), 'F1'), 'Free', if(startsWith(parameters('appServicePlanSku'), 'B'), 'Basic', if(startsWith(parameters('appServicePlanSku'), 'S'), 'Standard', 'PremiumV2')))]"
+            },
+            "kind": "linux",
+            "properties": {
+                "reserved": true
+            }
+        },
+        {
+            "condition": "[and(parameters('enableDashboard'), parameters('deployPython'))]",
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('appServiceName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "kind": "app,linux",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "httpsOnly": true,
+                "siteConfig": {
+                    "linuxFxVersion": "PYTHON|3.10",
+                    "pythonVersion": "3.10",
+                    "alwaysOn": "[not(equals(parameters('appServicePlanSku'), 'F1'))]",
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').ConnectionString]"
+                        },
+                        {
+                            "name": "AZURE_STORAGE_CONNECTION_STRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2021-04-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "STORAGE_CONTAINER_RAW",
+                            "value": "[variables('containerNames').rawData]"
+                        },
+                        {
+                            "name": "STORAGE_CONTAINER_PROCESSED",
+                            "value": "[variables('containerNames').processedData]"
+                        },
+                        {
+                            "name": "STORAGE_CONTAINER_REPORTS",
+                            "value": "[variables('containerNames').reports]"
+                        },
+                        {
+                            "name": "ENVIRONMENT",
+                            "value": "[parameters('environment')]"
+                        },
+                        {
+                            "name": "WEBSITE_PYTHONPATH",
+                            "value": "/home/site/wwwroot"
+                        },
+                        {
+                            "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+                            "value": "true"
+                        },
+                        {
+                            "name": "SCRIPT_STARTUP_COMMAND",
+                            "value": "gunicorn -b :8000 src.dashboard.app:server"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ]
+        },
+        {
+            "condition": "[parameters('deployPython')]",
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2021-02-01",
+            "name": "[variables('functionAppName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "kind": "functionapp,linux",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "properties": {
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "httpsOnly": true,
+                "siteConfig": {
+                    "linuxFxVersion": "PYTHON|3.10",
+                    "pythonVersion": "3.10",
+                    "alwaysOn": "[not(equals(parameters('appServicePlanSku'), 'F1'))]",
+                    "appSettings": [
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "[variables('functionWorkerRuntime')]"
+                        },
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').ConnectionString]"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2021-04-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "AZURE_STORAGE_CONNECTION_STRING",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountId'), '2021-04-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "STORAGE_CONTAINER_RAW",
+                            "value": "[variables('containerNames').rawData]"
+                        },
+                        {
+                            "name": "STORAGE_CONTAINER_PROCESSED",
+                            "value": "[variables('containerNames').processedData]"
+                        },
+                        {
+                            "name": "STORAGE_CONTAINER_REPORTS",
+                            "value": "[variables('containerNames').reports]"
+                        },
+                        {
+                            "name": "ENVIRONMENT",
+                            "value": "[parameters('environment')]"
+                        }
+                    ]
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+                "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2021-04-01-preview",
+            "name": "[variables('keyVaultName')]",
+            "location": "[parameters('location')]",
+            "tags": "[variables('tags')]",
+            "properties": {
+                "enabledForDeployment": false,
+                "enabledForTemplateDeployment": true,
+                "enabledForDiskEncryption": false,
+                "tenantId": "[subscription().tenantId]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[subscription().tenantId]",
+                        "objectId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2021-02-01', 'Full').identity.principalId]",
+                        "permissions": {
+                            "keys": [
+                                "Get"
+                            ],
+                            "secrets": [
+                                "Get",
+                                "List"
+                            ],
+                            "certificates": [
+                                "Get"
+                            ]
+                        }
+                    }
+                ],
+                "sku": {
+                    "name": "standard",
+                    "family": "A"
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+            ]
+        },
+        {
+            "condition": "[parameters('enableAlerts')]",
+            "type": "Microsoft.Insights/metricAlerts",
+            "apiVersion": "2018-03-01",
+            "name": "[variables('monitorAlertName')]",
+            "location": "global",
+            "tags": "[variables('tags')]",
+            "properties": {
+                "description": "Alert when egress traffic exceeds threshold",
+                "severity": 2,
+                "enabled": true,
+                "scopes": [
+                    "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+                ],
+                "evaluationFrequency": "PT1H",
+                "windowSize": "PT1H",
+                "criteria": {
+                    "odata.type": "Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria",
+                    "allOf": [
+                        {
+                            "name": "Egress",
+                            "metricName": "Egress",
+                            "dimensions": [],
+                            "operator": "GreaterThan",
+                            "threshold": 5000000000, // 5GB
+                            "timeAggregation": "Total",
+                            "criterionType": "StaticThresholdCriterion"
+                        }
+                    ]
+                },
+                "actions": []
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "storageAccountName": {
+            "type": "string",
+            "value": "[variables('storageAccountName')]"
+        },
+        "appServiceUrl": {
+            "type": "string",
+            "condition": "[parameters('enableDashboard')]",
+            "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('appServiceName'))).defaultHostName)]"
+        },
+        "functionAppUrl": {
+            "type": "string",
+            "condition": "[parameters('deployPython')]",
+            "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('functionAppName'))).defaultHostName)]"
+        },
+        "keyVaultName": {
+            "type": "string",
+            "value": "[variables('keyVaultName')]"
+        },
+        "appInsightsInstrumentationKey": {
+            "type": "string",
+            "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+        }
+    }
+}

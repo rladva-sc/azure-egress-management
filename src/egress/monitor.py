@@ -2,130 +2,109 @@
 Core egress monitoring functionality.
 """
 import logging
-import json
-from datetime import datetime, timedelta
+import jsonme import datetime, timedelta
+from datetime import datetime, timedelta Any, Union, Callable
 from typing import Dict, List, Optional, Any, Union, Callable
-
 from azure.core.exceptions import AzureError
-
+from azure.core.exceptions import AzureError
 from ..auth.azure_auth import AzureAuthenticator
+from ..auth.azure_auth import AzureAuthenticatort_metrics_for_resource_type
 from .metrics import EgressMetricsDefinition, get_metrics_for_resource_type
 from .collector import MetricsCollector
 from .storage import MetricsStorage
 from ..utils.azure_utils import (
-    get_resource_name, 
+    get_resource_name,  
     get_resource_group, 
-    get_resource_type,
+    get_resource_type,_operation,
     safe_execute_azure_operation,
     get_time_range_for_metrics
 )
-
 class EgressMonitorError(Exception):
+class EgressMonitorError(Exception):n the EgressMonitor class."""
     """Exception raised for errors in the EgressMonitor class."""
     pass
-
 class EgressMonitor:
-    """
+class EgressMonitor:
+    """itors and analyzes Azure egress traffic.
     Monitors and analyzes Azure egress traffic.
-    """
+    """ __init__(self, subscription_id, authenticator=None, config=None):
     def __init__(self, subscription_id, authenticator=None, config=None):
-        """
+        """tialize the egress monitor.
         Initialize the egress monitor.
-        
         Args:
-            subscription_id (str): Azure subscription ID
+        Args:ubscription_id (str): Azure subscription ID
+            subscription_id (str): Azure subscription ID: Authentication provider
             authenticator (AzureAuthenticator, optional): Authentication provider
             config (dict, optional): Configuration settings
-        """
+        """f.logger = logging.getLogger(__name__)
         self.logger = logging.getLogger(__name__)
-        self.subscription_id = subscription_id
+        self.subscription_id = subscription_idAzureAuthenticator()
         self.authenticator = authenticator or AzureAuthenticator()
         self.config = config or {}
-        
+        # Initialize metrics collector and storage if monitoring is enabled
         # Initialize metrics collector and storage if monitoring is enabled
         self.collector = None
         self.storage = None
-        
         if self.config.get("monitoring", {}).get("enabled", True):
-            # Set up storage if configured
-            storage_enabled = self.config.get("storage", {}).get("enabled", True)
-            if storage_enabled:
-                try:
-                    self.storage = MetricsStorage(self.config)
-                    self.storage.initialize()
-                except Exception as ex:
-                    self.logger.warning(f"Failed to initialize metrics storage: {str(ex)}")
-                    self.storage = None
-            
-            # Set up collector with storage
-            self.collector = MetricsCollector(
-                subscription_id=self.subscription_id,
-                authenticator=self.authenticator,
-                config=self.config,
-                storage=self.storage
-            )
-        
+        if self.config.get("monitoring", {}).get("enabled", True):torage")
+            self.logger.info("Initializing metrics collector and storage")
+            try:self.storage = MetricsStorage(self.config)
+                self.storage = MetricsStorage(self.config)henticator, self.subscription_id, self.config)
+                self.collector = MetricsCollector(self.authenticator, self.subscription_id, self.config)
+            except Exception as ex:"Failed to initialize monitoring components: {ex}")
+                self.logger.error(f"Failed to initialize monitoring components: {ex}")
+        get_network_resources(self, resource_type: Optional[str] = None) -> Dict[str, List]:
     def get_network_resources(self, resource_type: Optional[str] = None) -> Dict[str, List]:
-        """
-        Get network resources in the subscription.
-        
+        """Get network resources in the subscription.
+
         Args:
             resource_type (str, optional): Filter by resource type (vnets, public_ips, etc.)
-            
+
         Returns:
             dict: Collection of network resources by type
-        """
+        """f.logger.info(f"Retrieving network resources for subscription {self.subscription_id}")
         self.logger.info(f"Retrieving network resources for subscription {self.subscription_id}")
-        
+        # If collector is available, use it for discovery
         # If collector is available, use it for discovery
         if self.collector:
-            try:
-                resources = self.collector._discover_resources()
-                
-                # Filter by resource type if specified
-                if resource_type:
-                    filtered_resources = {}
-                    for rt, items in resources.items():
-                        if resource_type.lower() in rt.lower():
-                            filtered_resources[rt] = items
-                    return filtered_resources
-                else:
-                    return resources
-            except Exception as ex:
-                self.logger.error(f"Error using collector for resource discovery: {str(ex)}")
-                # Fall back to basic implementation
-        
+            try:return self.collector.discover_resources(resource_type)
+                return self.collector.discover_resources(resource_type)
+            except Exception as ex:(f"Failed to use collector for resource discovery, falling back: {ex}")
+                self.logger.warning(f"Failed to use collector for resource discovery, falling back: {ex}")
         # Basic implementation if collector not available or errored
-        try:
-            # Determine which resources to collect
-            resources_config = self.config.get("monitoring", {}).get("resources", {})
-            collect_vnets = resources_config.get("vnets", True)
-            collect_pips = resources_config.get("public_ips", True)
-            
-            # Get network client
-            network_client = self.authenticator.get_client('network', self.subscription_id)
-            
-            # Initialize result dictionary
+        # Basic implementation if collector not available or errored
+        try:# Create network client
+            # Create network clientuthenticator.get_client('network', self.subscription_id)
+            network_client = self.authenticator.get_client('network', self.subscription_id)d)
+            resource_client = self.authenticator.get_client('resource', self.subscription_id)
             resources = {}
-            
-            # Get virtual networks
-            if (not resource_type or "vnet" in resource_type.lower()) and collect_vnets:
-                vnets = list(network_client.virtual_networks.list_all())
-                self.logger.info(f"Found {len(vnets)} virtual networks")
-                resources['vnets'] = vnets
-            
-            # Get public IPs
-            if (not resource_type or "ip" in resource_type.lower()) and collect_pips:
-                public_ips = list(network_client.public_ip_addresses.list_all())
-                self.logger.info(f"Found {len(public_ips)} public IP addresses")
-                resources['public_ips'] = public_ips
+            resources = {}
+            # Query for virtual networks
+            # Query for virtual networksurce_type == 'vnets':
+            if not resource_type or resource_type == 'vnets':ual_networks.list_all())
+                resources['vnets'] = list(network_client.virtual_networks.list_all())
+                self.logger.info(f"Found {len(resources['vnets'])} virtual networks")
+            # Query for public IPs
+            # Query for public IPsr resource_type == 'public_ips':
+            if not resource_type or resource_type == 'public_ips':ic_ip_addresses.list_all())
+                resources['public_ips'] = list(network_client.public_ip_addresses.list_all())
+                self.logger.info(f"Found {len(resources['public_ips'])} public IP addresses")
+            # Query for network interfaces
+            # Query for network interfacesce_type == 'nics':
+            if not resource_type or resource_type == 'nics':ork_interfaces.list_all())
+                resources['nics'] = list(network_client.network_interfaces.list_all())
+                self.logger.info(f"Found {len(resources['nics'])} network interfaces")
+            # Query for application gateways
+            # Query for application gateways_type == 'app_gateways':
+            if not resource_type or resource_type == 'app_gateways':ication_gateways.list_all())
+                self.logger.info(f"Found {len(resources['app_gateways'])} application gateways")
             
             return resources
             
         except Exception as ex:
-            self.logger.error(f"Error retrieving network resources: {str(ex)}")
-            raise EgressMonitorError(f"Failed to get network resources: {str(ex)}") from ex
-    
+            self.logger.error(f"Failed to get network resources: {ex}")
+            return {}
+
     def get_egress_data(self, days=7, progress_callback: Optional[Callable[[float], None]] = None):
         """
         Collect egress data for the specified time period.

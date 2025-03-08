@@ -1,36 +1,33 @@
 ---
 name: Bug report
 about: Create a report to help us improve
-title: '[BUG]'
+title: "[BUG] "
 labels: bug
 assignees: ''
 ---
 
-## Description
-A clear description of the bug.
+## Describe the bug
+<!-- A clear and concise description of what the bug is -->
 
-## Steps to Reproduce
-1. 
-2. 
-3. 
+## To Reproduce
+Steps to reproduce the behavior:
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
 
-## Expected Behavior
+## Expected behavior
+<!-- A clear and concise description of what you expected to happen -->
 
-## Actual Behavior
-
-## Error Logs
-If applicable, include any error messages or logs.
-
-## Impact
-- [ ] Low (minimal impact on functionality)
-- [ ] Medium (partial feature disruption)
-- [ ] High (critical feature unavailable)
+## Screenshots
+<!-- If applicable, add screenshots to help explain your problem -->
 
 ## Environment
-- OS:
-- Azure CLI version:
-- PowerShell version:
-- Azure Subscription Type:
-- Azure Region:
-- Python version (if applicable):
+ - OS: [e.g. Windows 10, Ubuntu 22.04]
+ - Python Version: [e.g. 3.10]
+ - Package Version: [e.g. 1.0.0]
+ - Azure Subscription Type: [e.g. Free Tier, Enterprise]
+
+## Error messages or logs
+<!-- If applicable, paste any error messages or logs here -->
 

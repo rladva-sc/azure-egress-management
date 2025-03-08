@@ -1,0 +1,61 @@
+name: IaC Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'deploy/**'
+      - '.github/workflows/iac-validation.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'deploy/**'
+  workflow_dispatch:
+
+jobs:
+  validate-arm:
+    name: Validate ARM Templates
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Validate ARM Templates
+      uses: azure/arm-deploy@v1
+      with:
+        deploymentMode: Validate
+        template: ./deploy/azure-deploy.json
+        parameters: ./deploy/azure-deploy.parameters.json
+        scope: 'resourcegroup'
+        resourceGroupName: ${{ secrets.AZURE_RG_NAME }}
+    
+    - name: Run ARM-TTK tests
+      uses: github/super-linter@v5
+      env:
+        VALIDATE_ARM: true
+        DEFAULT_BRANCH: main
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        FILTER_REGEX_INCLUDE: .*deploy/.*(\.json)$
+
+  validate-bicep:
+    name: Validate Bicep Files
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Bicep CLI
+      run: |
+        curl -Lo bicep https://github.com/Azure/bicep/releases/latest/download/bicep-linux-x64
+        chmod +x ./bicep
+        sudo mv ./bicep /usr/local/bin/bicep
+    
+    - name: Validate Bicep files
+      run: |
+        find ./deploy -name "*.bicep" -type f | while read file; do
+          echo "Validating $file"
+          bicep build $file --stdout > /dev/null
+        done
